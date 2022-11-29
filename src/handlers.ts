@@ -2,7 +2,8 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import AWS from "aws-sdk";
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import * as yup from "yup";
-import {v4} from "uuid" 
+import {v4, validate} from "uuid" 
+import { abort } from "process";
 
 
 const docClient = new AWS.DynamoDB.DocumentClient()
@@ -42,11 +43,25 @@ class HttpError extends Error {
 }
 
 // JavaScript schema builder for value parsing and validation
-const schema = yup.object().shape
+const schema = yup.object().shape({
+  name: yup.string().required(),
+  price: yup.number().required()
+});
 
 
 // throw error e with status code and message
 const handleError = (e:unknown) => {
+
+  if (e instanceof yup.ValidationError) {
+
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({
+        errors: e.errors
+      })
+    }
+  }
 
   if (e instanceof HttpError) {
     return {
@@ -60,7 +75,7 @@ const handleError = (e:unknown) => {
     return {
       statusCode: 400,
       headers,
-      body: `invalid request body format : "${e.message}"`,
+      body: JSON.stringify({error: `invalid request body format : "${e.message}"`}),
     };
   }
 
@@ -75,6 +90,9 @@ export const createProduct = async (event: APIGatewayProxyEvent): Promise<APIGat
   try {
 
   const reqBody = JSON.parse(event.body as string);
+
+  // based on schema interface defination validate the request body
+  await schema.validate(reqBody,{abortEarly: false});
 
 
   const product = {
@@ -129,6 +147,8 @@ export const updateProduct = async (event: APIGatewayProxyEvent): Promise<APIGat
    await fetchProductById(id);
 
   const reqBody = JSON.parse(event.body as string);
+
+  await schema.validate(reqBody);
 
   const product = {
     ...reqBody,
