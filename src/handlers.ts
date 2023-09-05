@@ -216,3 +216,6 @@ export const listProduct = async (event: APIGatewayProxyEvent): Promise<APIGatew
     body: JSON.stringify(output.Items)
   }
 }
+
+
+
